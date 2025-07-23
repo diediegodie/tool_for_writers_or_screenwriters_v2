@@ -2,7 +2,16 @@
   {
     "chapters": [
       {
-        "title": "Chapter 1",
+        "title": "teste",
+        "scenes": [
+          {
+            "title": "test scene 1",
+            "content": ""
+          }
+        ]
+      },
+      {
+        "title": "teste 2",
         "scenes": []
       }
     ]

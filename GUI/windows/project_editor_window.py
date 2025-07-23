@@ -4,10 +4,12 @@ Project Editor Window for Writer & Screenwriter Assistant
 - Add/edit/delete chapters and scenes
 
 Follows project structure and coding standards in docs/PLANNING.md and docs/instructions.instructions.md
+"""
+
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-'''
+    QHBoxLayout,
     QPushButton,
     QListWidget,
     QListWidgetItem,

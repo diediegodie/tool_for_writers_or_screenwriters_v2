@@ -5,8 +5,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pytest
 from PySide6.QtWidgets import QApplication
-from GUI.windows.project_editor import ProjectEditorWindow
+from GUI.windows.project_editor_window import ProjectEditorWindow
 import time
+from GUI.windows.project_editor import annotations
 
 
 @pytest.fixture(scope="module")
@@ -61,13 +62,20 @@ def test_add_annotation(editor, qtbot):
     editor.text_editor.setPlainText("annotate me")
     editor.text_editor.selectAll()
     # Patch QInputDialog.getText to simulate user input
-    orig = editor._add_annotation.__globals__["QInputDialog"].getText
-    editor._add_annotation.__globals__["QInputDialog"].getText = lambda *a, **k: (
+    orig = annotations.QInputDialog.getText
+    annotations.QInputDialog.getText = lambda *a, **k: (
         "Test annotation",
         True,
     )
-    editor._add_annotation()
-    editor._add_annotation.__globals__["QInputDialog"].getText = orig
+    annotations.add_annotation(
+        editor,
+        editor.text_editor,
+        editor.chapter_list,
+        editor.scene_list,
+        editor.chapters,
+        editor._refresh_annotation_list,
+    )
+    annotations.QInputDialog.getText = orig
     scene = editor.chapters[0]["scenes"][0]
     assert "annotations" in scene
     assert scene["annotations"][0]["note"] == "Test annotation"
@@ -87,13 +95,20 @@ def test_add_footnote(editor, qtbot):
     editor.text_editor.setPlainText("footnote me")
     editor.text_editor.selectAll()
     # Patch QInputDialog.getText to simulate user input
-    orig = editor._add_footnote.__globals__["QInputDialog"].getText
-    editor._add_footnote.__globals__["QInputDialog"].getText = lambda *a, **k: (
+    orig = annotations.QInputDialog.getText
+    annotations.QInputDialog.getText = lambda *a, **k: (
         "Test footnote",
         True,
     )
-    editor._add_footnote()
-    editor._add_footnote.__globals__["QInputDialog"].getText = orig
+    annotations.add_footnote(
+        editor,
+        editor.text_editor,
+        editor.chapter_list,
+        editor.scene_list,
+        editor.chapters,
+        editor._refresh_annotation_list,
+    )
+    annotations.QInputDialog.getText = orig
     scene = editor.chapters[0]["scenes"][0]
     assert "footnotes" in scene
     assert scene["footnotes"][0]["note"] == "Test footnote"

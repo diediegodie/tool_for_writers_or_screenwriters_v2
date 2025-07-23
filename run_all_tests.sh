@@ -5,18 +5,9 @@
 
 set -e
 
-# Run GUI (PySide6) tests
-echo "Running GUI tests..."
-PYTHONPATH=. pytest tests/gui/
-
-# Run backend tests (uncomment when backend is ready)
-# echo "Running backend tests..."
-# PYTHONPATH=. pytest tests/backend/
-
-# Run E2E or other test suites (add as needed)
-# echo "Running E2E tests..."
-# npx playwright test
-
-# Add new test commands above as features are added
-
+echo "All tests completed."
+echo "Running all GUI and backend tests..."
+PYTHONPATH=. pytest tests/ --maxfail=1 --disable-warnings -v -m 'not smoke'
+echo "Running smoke tests (non-GUI QApplication)..."
+PYTHONPATH=. pytest tests/smoke/ --maxfail=1 --disable-warnings -v -m smoke
 echo "All tests completed."

@@ -59,7 +59,7 @@ class HomepageWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def open_project_editor_window(self):
-        from GUI.windows.project_editor import ProjectEditorWindow
+        from GUI.windows.project_editor_window import ProjectEditorWindow
 
         self.project_editor = ProjectEditorWindow(self)
         self.project_editor.show()

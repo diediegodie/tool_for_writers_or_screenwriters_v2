@@ -4,7 +4,7 @@ Test ProjectEditorWindow: normal, edge, and failure cases for chapter/scene mana
 
 import pytest
 from PySide6.QtWidgets import QApplication
-from GUI.windows.project_editor import ProjectEditorWindow
+from GUI.windows.project_editor_window import ProjectEditorWindow
 
 
 @pytest.fixture(scope="module")
