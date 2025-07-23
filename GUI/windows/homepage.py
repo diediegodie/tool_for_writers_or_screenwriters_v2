@@ -28,7 +28,14 @@ class HomepageWindow(QMainWindow):
         btn_register = QPushButton("Register")
         btn_logout = QPushButton("Logout")
         btn_dashboard = QPushButton("Open Dashboard")
-        for btn in (btn_login, btn_register, btn_logout, btn_dashboard):
+        btn_project_editor = QPushButton("Open Project Editor")
+        for btn in (
+            btn_login,
+            btn_register,
+            btn_logout,
+            btn_dashboard,
+            btn_project_editor,
+        ):
             btn.setMinimumWidth(180)
             btn.setStyleSheet("font-size: 15px; margin: 8px 0;")
 
@@ -36,6 +43,7 @@ class HomepageWindow(QMainWindow):
         btn_register.clicked.connect(self.open_register_dialog)
         btn_logout.clicked.connect(self.open_logout_dialog)
         btn_dashboard.clicked.connect(self.open_dashboard_window)
+        btn_project_editor.clicked.connect(self.open_project_editor_window)
 
         layout.addWidget(title)
         layout.addWidget(subtitle)
@@ -44,9 +52,17 @@ class HomepageWindow(QMainWindow):
         layout.addWidget(btn_register)
         layout.addWidget(btn_logout)
         layout.addWidget(btn_dashboard)
+        layout.addWidget(btn_project_editor)
 
+        # Set layout and central widget at the end
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
+    def open_project_editor_window(self):
+        from GUI.windows.project_editor import ProjectEditorWindow
+
+        self.project_editor = ProjectEditorWindow(self)
+        self.project_editor.show()
 
     def open_dashboard_window(self):
         self.dashboard = DashboardWindow(self)

@@ -49,8 +49,17 @@ class DashboardWindow(QMainWindow):
         btn_layout.addWidget(btn_rename)
         layout.addLayout(btn_layout)
 
+        btn_project_editor = QPushButton("Open Project Editor")
+        btn_project_editor.clicked.connect(self.open_project_editor_window)
+        layout.addWidget(btn_project_editor)
         central.setLayout(layout)
         self.setCentralWidget(central)
+
+    def open_project_editor_window(self):
+        from GUI.windows.project_editor import ProjectEditorWindow
+
+        self.project_editor = ProjectEditorWindow(self)
+        self.project_editor.show()
 
     def create_project(self):
         name, ok = QInputDialog.getText(self, "Create Project", "Project name:")
