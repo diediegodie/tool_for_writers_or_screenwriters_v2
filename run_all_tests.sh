@@ -1,17 +1,22 @@
 #!/bin/bash
-# run_all_tests.sh – Run all project tests (frontend, backend, E2E)
+# run_all_tests.sh - Single entry point for all project tests (GUI, backend, future E2E, etc.)
 # Usage: ./run_all_tests.sh
-# Add every new test command here!
+# Reason: Ensures all contributors and LLMs use a single, up-to-date entry point for testing.
 
 set -e
 
-# Frontend unit/integration tests
-cd frontend && npm test -- --watchAll=false --ci && cd ..
+# Run GUI (PySide6) tests
+echo "Running GUI tests..."
+PYTHONPATH=. pytest tests/gui/
 
-# Backend tests (uncomment when backend is ready)
-# cd backend && pytest && cd ..
+# Run backend tests (uncomment when backend is ready)
+# echo "Running backend tests..."
+# PYTHONPATH=. pytest tests/backend/
 
-# E2E tests (uncomment when Playwright is set up)
-# cd frontend && npx playwright test && cd ..
+# Run E2E or other test suites (add as needed)
+# echo "Running E2E tests..."
+# npx playwright test
 
 # Add new test commands above as features are added
+
+echo "All tests completed."
