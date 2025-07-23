@@ -115,7 +115,9 @@ def test_edit_scene_normal(editor, qtbot):
     editor._edit_scene.__globals__["QInputDialog"].getText = fake_get_text
     editor._edit_scene()
     editor._edit_scene.__globals__["QInputDialog"].getText = orig
-    assert editor.chapters[0]["scenes"][0] == "Scene 1 Edited"
+    scene = editor.chapters[0]["scenes"][0]
+    assert isinstance(scene, dict)
+    assert scene["title"] == "Scene 1 Edited"
     assert editor.scene_list.item(0).text() == "Scene 1 Edited"
 
 

@@ -1,11 +1,10 @@
 [
-  "My First Project",
-  "Project X",
-  "NewName",
-  "Project X",
-  "NewName",
-  "Project X",
-  "NewName",
-  "Project X",
-  "NewName"
+  {
+    "chapters": [
+      {
+        "title": "Chapter 1",
+        "scenes": []
+      }
+    ]
+  }
 ]
