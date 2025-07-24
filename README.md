@@ -33,4 +33,4 @@
 - **CI/CD**: GitHub Actions
 - **Deployment**: Fly.io, Render, or Railway
 - **Environment Management**: `.env` files
-- **Unified Testing**: All tests (GUI, backend, future E2E) are run via `./run_all_tests.sh` for consistency and maintainability. See `/docs/TESTING_STANDARD.md` for details.
+- **Unified Testing**: All tests (GUI, backend, future E2E) are run via `./run_all_tests.sh` for consistency and maintainability.

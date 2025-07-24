@@ -16,6 +16,12 @@ def test_main_runs(monkeypatch):
 
     called = {}
 
+    # Close any existing QApplication instance to avoid singleton error
+    app = QApplication.instance()
+    if app is not None:
+        app.quit()
+        del app
+
     class DummyApp(QApplication):
         def exec(self):
             called["ran"] = True

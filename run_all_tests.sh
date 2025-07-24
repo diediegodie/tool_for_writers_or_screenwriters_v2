@@ -5,9 +5,8 @@
 
 set -e
 
-echo "All tests completed."
-echo "Running all GUI and backend tests..."
-PYTHONPATH=. pytest tests/ --maxfail=1 --disable-warnings -v -m 'not smoke'
-echo "Running smoke tests (non-GUI QApplication)..."
-PYTHONPATH=. pytest tests/smoke/ --maxfail=1 --disable-warnings -v -m smoke
+echo "Running all GUI and backend tests except the smoke test..."
+PYTHONPATH=. pytest tests/gui tests/backend tests/gui/test_kanban_board_logic.py --ignore=tests/smoke/test_main_smoke.py --maxfail=1 --disable-warnings -v
+echo "Running smoke test (QApplication entry point) separately..."
+PYTHONPATH=. pytest tests/smoke/test_main_smoke.py --maxfail=1 --disable-warnings -v
 echo "All tests completed."

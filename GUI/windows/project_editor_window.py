@@ -30,6 +30,7 @@ from PySide6.QtGui import QFont
 # Local storage for autosave/offline
 from GUI.storage import project_store
 from GUI.windows.project_editor.timeline_tab import TimelineTab
+from GUI.windows.kanban_board import KanbanBoardWidget
 from GUI.windows.project_editor.annotations import (
     add_footnote,
     add_annotation,
@@ -59,6 +60,7 @@ class ProjectEditorWindow(QWidget):
 
     def _setup_ui(self):
         tab_widget = QTabWidget(self)
+        self.tab_widget = tab_widget  # Store reference for testing and access
 
         # --- Main Editor Tab ---
         splitter = QSplitter(self)
@@ -211,6 +213,33 @@ class ProjectEditorWindow(QWidget):
 
         timeline_tab = TimelineTab(get_scenes, set_scenes)
         tab_widget.addTab(timeline_tab, "Story Planning")
+
+        # --- Kanban Board Tab ---
+        # Gather available chapters and scenes for Kanban linking
+        def get_available_links():
+            links = []
+            for cidx, chapter in enumerate(self.chapters):
+                chapter_id = f"chapter:{cidx}"
+                links.append(
+                    {"id": chapter_id, "type": "chapter", "title": chapter["title"]}
+                )
+                for sidx, scene in enumerate(chapter.get("scenes", [])):
+                    scene_id = f"chapter:{cidx}:scene:{sidx}"
+                    scene_title = (
+                        scene["title"] if isinstance(scene, dict) else str(scene)
+                    )
+                    links.append(
+                        {
+                            "id": scene_id,
+                            "type": "scene",
+                            "title": scene_title,
+                            "chapter": chapter["title"],
+                        }
+                    )
+            return links
+
+        kanban_tab = KanbanBoardWidget(self, get_available_links)
+        tab_widget.addTab(kanban_tab, "Kanban Board")
 
         main_layout = QHBoxLayout(self)
         main_layout.addWidget(tab_widget)
