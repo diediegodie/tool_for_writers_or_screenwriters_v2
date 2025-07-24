@@ -1,18 +1,16 @@
 {
   "To Do": [
     {
-      "title": "Context Menoo",
+      "title": "Context asdad",
       "metadata": {
-        "notes": ":)",
+        "notes": "modified",
         "tags": [],
         "color": null,
         "links": []
       }
-    }
-  ],
-  "In Progress": [
+    },
     {
-      "title": "Move Me",
+      "title": "Context Menu",
       "metadata": {
         "notes": "",
         "tags": [],
@@ -21,5 +19,6 @@
       }
     }
   ],
+  "In Progress": [],
   "Done": []
 }

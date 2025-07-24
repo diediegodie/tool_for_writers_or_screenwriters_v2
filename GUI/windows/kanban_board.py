@@ -17,6 +17,9 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QMessageBox,
     QMenu,
+    QScrollArea,
+    QSizePolicy,
+    QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from GUI.storage import kanban_store
@@ -39,6 +42,18 @@ from PySide6.QtWidgets import (
 
 
 class KanbanCard(QListWidgetItem):
+    def _get_card_size_hint(self):
+        from PySide6.QtCore import QSize
+
+        return QSize(200, 70)  # width is flexible, height min 60-70
+
+    def _set_card_style(self):
+        # Use a subtle border and padding for clarity
+        self.setData(
+            Qt.UserRole + 3,
+            "border: 1px solid #bbb; border-radius: 6px; margin: 6px 0; padding: 8px 6px; background: #fff;",
+        )
+
     def __init__(self, text, metadata=None):
         super().__init__(text)
         self.metadata = metadata or {
@@ -49,6 +64,12 @@ class KanbanCard(QListWidgetItem):
         }
         self.setData(Qt.UserRole + 1, text)
         self.setData(Qt.UserRole + 2, f"Kanban card: {text}")
+        # Accessibility: use Qt.AccessibleTextRole and Qt.AccessibleDescriptionRole for QListWidgetItem
+        self.setData(Qt.AccessibleTextRole, f"Kanban Card: {text}")
+        self.setData(Qt.AccessibleDescriptionRole, f"Card for plot/idea: {text}")
+        # Set minimum/maximum height and style for card
+        self.setSizeHint(self._get_card_size_hint())
+        self._set_card_style()
         if self.metadata.get("color"):
             self.setBackground(QColor(self.metadata["color"]))
 
@@ -70,6 +91,10 @@ class CardDetailsDialog(QDialog):
     def __init__(self, card: KanbanCard, parent=None, available_links=None):
         super().__init__(parent)
         self.setWindowTitle("Card Details")
+        self.setAccessibleName("Card Details Dialog")
+        self.setAccessibleDescription(
+            "Dialog for editing Kanban card details, notes, tags, and links."
+        )
         self.card = card
         layout = QVBoxLayout(self)
         self.text_edit = QLineEdit(card.text())
@@ -145,6 +170,128 @@ class Column:
 
 
 class KanbanBoardWidget(QWidget):
+    def move_card_within_column(self, column_name, from_row, to_row):
+        """Move a card within a column from one row to another."""
+        col = self.column_map.get(column_name)
+        if not col:
+            return False
+        lw = col.list_widget
+        if from_row < 0 or from_row >= lw.count() or to_row < 0 or to_row >= lw.count():
+            return False
+        self.push_undo()
+        item = lw.takeItem(from_row)
+        lw.insertItem(to_row, item)
+        lw.setCurrentRow(to_row)
+        self.trigger_autosave()
+        return True
+
+    def move_card_between_columns(self, from_column, to_column, row):
+        """Move a card from one column to another."""
+        col_from = self.column_map.get(from_column)
+        col_to = self.column_map.get(to_column)
+        if not col_from or not col_to:
+            return False
+        lw_from = col_from.list_widget
+        lw_to = col_to.list_widget
+        if row < 0 or row >= lw_from.count():
+            return False
+        self.push_undo()
+        item = lw_from.takeItem(row)
+        lw_to.addItem(item)
+        lw_to.setCurrentItem(item)
+        lw_to.setFocus()
+        self.trigger_autosave()
+        return True
+
+    def focus_column(self, column_name):
+        """Set focus to the list widget of the given column."""
+        col = self.column_map.get(column_name)
+        if not col:
+            return False
+        col.list_widget.setFocus()
+        return True
+
+    def keyPressEvent(self, event):
+        """
+        Keyboard shortcuts for Kanban board:
+        - Ctrl+N: Add card to selected column
+        - Enter/F2: Edit selected card
+        - Delete: Delete selected card
+        - Ctrl+Up/Down: Move card within column
+        - Ctrl+Left/Right: Move card between columns
+        """
+        from PySide6.QtGui import QKeySequence
+
+        key = event.key()
+        modifiers = event.modifiers()
+        # Find focused list widget (column)
+        focused_col = None
+        for col in self.columns:
+            if col.list_widget.hasFocus():
+                focused_col = col
+                break
+        if not focused_col:
+            super().keyPressEvent(event)
+            return
+        lw = focused_col.list_widget
+        current_row = lw.currentRow()
+        # Ctrl+N: Add card
+        if (modifiers & Qt.ControlModifier) and key == Qt.Key_N:
+            self._add_card(lw, focused_col.name)
+            return
+        # Enter or F2: Edit card
+        if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_F2):
+            item = lw.currentItem()
+            if item:
+                self._edit_card(lw, focused_col.name, item)
+            return
+        # Delete: Delete card
+        if key == Qt.Key_Delete:
+            item = lw.currentItem()
+            if item:
+                self._delete_card(lw, focused_col.name, item)
+            return
+        # Ctrl+Up/Down: Move card within column
+        if (modifiers & Qt.ControlModifier) and key in (Qt.Key_Up, Qt.Key_Down):
+            item = lw.currentItem()
+            if item and current_row != -1:
+                target_row = current_row - 1 if key == Qt.Key_Up else current_row + 1
+                if 0 <= target_row < lw.count():
+                    self.push_undo()
+                    lw.takeItem(current_row)
+                    lw.insertItem(target_row, item)
+                    lw.setCurrentRow(target_row)
+                    self.trigger_autosave()
+            return
+        # Ctrl+Left/Right: Move card between columns
+        if (modifiers & Qt.ControlModifier) and key in (Qt.Key_Left, Qt.Key_Right):
+            item = lw.currentItem()
+            if item and current_row != -1:
+                col_idx = self.columns.index(focused_col)
+                target_idx = col_idx - 1 if key == Qt.Key_Left else col_idx + 1
+                if 0 <= target_idx < len(self.columns):
+                    self.push_undo()
+                    lw.takeItem(current_row)
+                    target_col = self.columns[target_idx]
+                    target_col.list_widget.addItem(item)
+                    target_col.list_widget.setCurrentItem(item)
+                    target_col.list_widget.setFocus()
+                    self.trigger_autosave()
+            return
+        # Tab/Shift+Tab: Move focus between columns
+        if key == Qt.Key_Tab:
+            col_idx = self.columns.index(focused_col)
+            next_idx = (col_idx + 1) % len(self.columns)
+            self.columns[next_idx].list_widget.setFocus()
+            return
+        if key == Qt.Key_Backtab:
+            col_idx = self.columns.index(focused_col)
+            prev_idx = (col_idx - 1) % len(self.columns)
+            self.columns[prev_idx].list_widget.setFocus()
+            return
+        # Otherwise, default
+        super().keyPressEvent(event)
+
     def __init__(self, parent=None, get_available_links=None):
         self._loading = False  # Ensure always defined, before QWidget init
         super().__init__(parent)
@@ -245,6 +392,7 @@ class KanbanBoardWidget(QWidget):
         # Update add button accessibility
         add_btn = col.add_btn
         add_btn.setAccessibleName(f"Add Card to {new_title}")
+        add_btn.setAccessibleDescription(f"Button to add a card to {new_title} column")
         # Update mapping
         self.column_map[new_title] = col
         del self.column_map[old_title]
@@ -372,7 +520,24 @@ class KanbanBoardWidget(QWidget):
 
         add_btn = QPushButton("Add Card")
         add_btn.setAccessibleName(f"Add Card to {title}")
+        add_btn.setAccessibleDescription(f"Button to add a card to {title} column")
         vbox.addWidget(add_btn)
+
+        # Edit and Delete buttons for accessibility (not visible, but for screen readers if needed)
+        edit_btn = QPushButton("Edit Card")
+        edit_btn.setAccessibleName(f"Edit Card in {title}")
+        edit_btn.setAccessibleDescription(
+            f"Button to edit selected card in {title} column"
+        )
+        edit_btn.setVisible(False)
+        vbox.addWidget(edit_btn)
+        delete_btn = QPushButton("Delete Card")
+        delete_btn.setAccessibleName(f"Delete Card in {title}")
+        delete_btn.setAccessibleDescription(
+            f"Button to delete selected card in {title} column"
+        )
+        delete_btn.setVisible(False)
+        vbox.addWidget(delete_btn)
 
         # Connect add_btn to self._add_card
         add_btn.clicked.connect(
