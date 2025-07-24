@@ -9,7 +9,20 @@ KANBAN_HISTORY_DIR = os.path.join(os.path.dirname(__file__), "kanban_history")
 def load_kanban_board():
     if os.path.exists(KANBAN_FILE):
         with open(KANBAN_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Defensive: ensure all cards have 'metadata' and 'links' fields
+            for col_cards in data.values():
+                for card in col_cards:
+                    if isinstance(card, dict):
+                        if "metadata" not in card or not isinstance(
+                            card["metadata"], dict
+                        ):
+                            card["metadata"] = {}
+                        if "links" not in card["metadata"] or not isinstance(
+                            card["metadata"].get("links"), list
+                        ):
+                            card["metadata"]["links"] = []
+            return data
     return {}
 
 

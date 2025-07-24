@@ -11,19 +11,52 @@ from PySide6.QtCore import Qt, Signal, QMimeData, QByteArray
 from PySide6.QtGui import QDrag
 
 
+import uuid
+
+
 class TimelineCard(QFrame):
-    def __init__(self, title, parent=None):
+    """
+    TimelineCard represents a card in the timeline/storyboard.
+
+    metadata fields (shared with KanbanCard):
+        id (str): Unique card ID (uuid4 hex)
+        title (str): Card title
+        notes (str): Freeform notes for the card.
+        tags (List[str]): List of tags for filtering/searching.
+        color (Optional[str]): Hex color string for card background.
+        links (List[str]): List of scene/chapter IDs this card is linked to for quick navigation.
+    """
+
+    def __init__(self, title_or_metadata, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
         self.setMinimumWidth(120)
         self.setMaximumWidth(200)
         self.setStyleSheet("background: #f3f4f6; border-radius: 8px; padding: 8px;")
         layout = QVBoxLayout(self)
-        self.label = QLabel(title)
+        # Accept either a title (str) or a metadata dict
+        if isinstance(title_or_metadata, dict):
+            self.metadata = title_or_metadata.copy()
+            self.title = self.metadata.get("title", "Untitled")
+        else:
+            self.title = str(title_or_metadata)
+            self.metadata = {
+                "id": str(uuid.uuid4()),
+                "title": self.title,
+                "notes": "",
+                "tags": [],
+                "color": None,
+                "links": [],
+            }
+        self.label = QLabel(self.title)
         layout.addWidget(self.label)
         self.setLayout(layout)
         self.setAcceptDrops(True)
-        self.title = title
+        # Set color if present
+        if self.metadata.get("color"):
+            self.setStyleSheet(
+                f"background: {self.metadata['color']}; border-radius: 8px; padding: 8px;"
+            )
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -45,11 +78,16 @@ class TimelineBoardWidget(QWidget):
         self.cards = []
         self.setAcceptDrops(True)
 
-    def add_card(self, title):
-        card = TimelineCard(title)
+    def add_card(self, title_or_metadata):
+        card = TimelineCard(title_or_metadata)
+        print(
+            f"[DEBUG] TimelineBoardWidget.add_card: Adding card with id={card.metadata.get('id')}, title={card.title}"
+        )
         self.cards.append(card)
         self.layout.addWidget(card)
+        card.setParent(self)  # Ensure widget hierarchy
         card.show()
+        self.layout.update()
 
     def remove_card(self, title):
         for card in self.cards:

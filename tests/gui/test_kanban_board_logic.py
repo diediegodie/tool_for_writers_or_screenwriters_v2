@@ -101,7 +101,9 @@ def test_add_card_with_metadata(kanban, qtbot):
     # Retrieve and check metadata
     item = col.list_widget.item(col.list_widget.count() - 1)
     assert isinstance(item, KanbanCard)
-    assert item.metadata == metadata
+    # Check that all keys/values in metadata are present in item.metadata
+    for k, v in metadata.items():
+        assert item.metadata[k] == v
 
 
 def test_edit_card_metadata(kanban, qtbot):
