@@ -1,14 +1,14 @@
 #!/bin/bash
-# Run all tests (backend and GUI)
+# Unified test runner for ALL tests (backend, GUI, integration, smoke)
+# Always use this script to run tests. Do NOT run pytest directly.
+# See docs/TESTING_STANDARD.md for details and rationale.
 
 set -e
 
-echo "Running all GUI and backend tests except the smoke test..."
-PYTHONPATH=. pytest tests/backend --maxfail=2 -v
+echo "[run_all_tests.sh] Running all backend and GUI tests except the smoke test..."
+PYTHONPATH=. pytest tests/ --maxfail=1 --disable-warnings -v --ignore=tests/smoke/test_main_smoke.py
 
-echo "Running GUI tests (with xvfb for headless/Wayland compatibility)..."
-PYTHONPATH=. xvfb-run -a pytest tests/gui --maxfail=2 -v
+echo "[run_all_tests.sh] Running smoke test (QApplication entry point) in isolation..."
+PYTHONPATH=. pytest tests/smoke/test_main_smoke.py --maxfail=1 --disable-warnings -v
 
-echo "Running smoke test (QApplication entry point) separately..."
-PYTHONPATH=. pytest tests/smoke --maxfail=2 -v
-echo "All tests completed."
+echo "[run_all_tests.sh] All tests completed."

@@ -29,12 +29,18 @@ class HomepageWindow(QMainWindow):
         btn_logout = QPushButton("Logout")
         btn_dashboard = QPushButton("Open Dashboard")
         btn_project_editor = QPushButton("Open Project Editor")
+        btn_characters = QPushButton("Characters Panel")
+        btn_locations = QPushButton("Locations Panel")
+        btn_events = QPushButton("Events Panel")
         for btn in (
             btn_login,
             btn_register,
             btn_logout,
             btn_dashboard,
             btn_project_editor,
+            btn_characters,
+            btn_locations,
+            btn_events,
         ):
             btn.setMinimumWidth(180)
             btn.setStyleSheet("font-size: 15px; margin: 8px 0;")
@@ -44,6 +50,9 @@ class HomepageWindow(QMainWindow):
         btn_logout.clicked.connect(self.open_logout_dialog)
         btn_dashboard.clicked.connect(self.open_dashboard_window)
         btn_project_editor.clicked.connect(self.open_project_editor_window)
+        btn_characters.clicked.connect(self.open_character_panel)
+        btn_locations.clicked.connect(self.open_location_panel)
+        btn_events.clicked.connect(self.open_event_panel)
 
         layout.addWidget(title)
         layout.addWidget(subtitle)
@@ -53,10 +62,34 @@ class HomepageWindow(QMainWindow):
         layout.addWidget(btn_logout)
         layout.addWidget(btn_dashboard)
         layout.addWidget(btn_project_editor)
+        layout.addWidget(btn_characters)
+        layout.addWidget(btn_locations)
+        layout.addWidget(btn_events)
 
         # Set layout and central widget at the end
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
+    def open_character_panel(self):
+        from GUI.windows.character_panel import CharacterPanel
+
+        self.character_panel = CharacterPanel(self)
+        self.character_panel.setWindowTitle("Characters Panel")
+        self.character_panel.show()
+
+    def open_location_panel(self):
+        from GUI.windows.location_panel import LocationPanel
+
+        self.location_panel = LocationPanel(self)
+        self.location_panel.setWindowTitle("Locations Panel")
+        self.location_panel.show()
+
+    def open_event_panel(self):
+        from GUI.windows.event_panel import EventPanel
+
+        self.event_panel = EventPanel(self)
+        self.event_panel.setWindowTitle("Events Panel")
+        self.event_panel.show()
 
     def open_project_editor_window(self):
         from GUI.windows.project_editor_window import ProjectEditorWindow

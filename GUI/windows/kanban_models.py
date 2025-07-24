@@ -1,3 +1,125 @@
+# --- Timeline to Kanban Integration Utility ---
+def sync_timeline_cards_to_kanban_columns(timeline_cards, kanban_columns):
+    """
+    Sync a list of timeline card objects (with .metadata or dict) to Kanban columns.
+    Updates existing Kanban cards by id, or adds new ones to the first column if not present.
+
+    Args:
+        timeline_cards: List of TimelineCard objects or dicts (must have 'id').
+        kanban_columns: List of Column objects (each with a QListWidget of KanbanCards).
+
+    This function ensures that for every timeline card, there is a corresponding Kanban card.
+    If a timeline card's id matches a Kanban card, the Kanban card is updated.
+    If not, a new Kanban card is added to the first column.
+    """
+    # Build id->(col, card) mapping for Kanban
+    kanban_cards_by_id = {}
+    for col in kanban_columns:
+        for i in range(col.list_widget.count()):
+            item = col.list_widget.item(i)
+            meta = getattr(item, "metadata", None)
+            if meta and meta.get("id"):
+                kanban_cards_by_id[meta["id"]] = (col, item)
+    for tcard in timeline_cards:
+        meta = getattr(tcard, "metadata", tcard)  # Accept TimelineCard or dict
+        tid = meta.get("id")
+        if tid in kanban_cards_by_id:
+            col, kcard = kanban_cards_by_id[tid]
+            kcard.metadata.update(meta)
+            kcard.setText(meta.get("title", kcard.text()))
+            # Optionally update color, tags, etc.
+        else:
+            # Add to first column by default
+            if kanban_columns:
+                from .kanban_models import KanbanCard
+
+                new_card = KanbanCard(meta.get("title", "Untitled"), metadata=meta)
+                kanban_columns[0].list_widget.addItem(new_card)
+
+
+# --- Timeline/Storyboard Integration Utilities ---
+def sync_kanban_cards_to_timeline_widget(kanban_cards, timeline_widget):
+    """
+    Sync a list of KanbanCard objects to a TimelineBoardWidget.
+    Updates existing timeline cards by id, or adds new ones if not present.
+
+    Args:
+        kanban_cards: List of KanbanCard objects.
+        timeline_widget: TimelineBoardWidget (or compatible) instance.
+
+    This function ensures that for every Kanban card, there is a corresponding timeline card.
+    - If a Kanban card's id matches a timeline card, the timeline card is updated.
+    - If not, a new timeline card is added.
+    - Prevents duplicate timeline cards for the same Kanban card.
+    - Removes timeline cards whose id is not present in Kanban (handles delete/rename).
+    """
+    # Build id->card mapping for timeline
+    timeline_cards_by_id = {
+        getattr(c, "metadata", {}).get("id"): c
+        for c in getattr(timeline_widget, "cards", [])
+    }
+    seen_ids = set()
+    for kcard in kanban_cards:
+        tdata = kanban_card_to_timeline_card(kcard)
+        tid = tdata["id"]
+        if tid in seen_ids:
+            continue  # Prevent duplicate timeline cards for same Kanban card
+        seen_ids.add(tid)
+        if tid in timeline_cards_by_id:
+            tcard = timeline_cards_by_id[tid]
+            # Map 'description' to 'notes' for timeline card compatibility
+            tdata_for_update = tdata.copy()
+            if "description" in tdata_for_update:
+                tdata_for_update["notes"] = tdata_for_update.pop("description")
+            tcard.metadata.update(tdata_for_update)
+            tcard.title = tdata_for_update["title"]
+            if hasattr(tcard, "label"):
+                tcard.label.setText(tdata_for_update["title"])
+            # Optionally update color, tags, etc.
+        else:
+            timeline_widget.add_card(tdata)
+
+    # Handle deleted/renamed Kanban cards: remove timeline cards whose id is not in Kanban
+    kanban_ids = {kanban_card_to_timeline_card(k)["id"] for k in kanban_cards}
+    to_remove = [
+        c
+        for c in getattr(timeline_widget, "cards", [])
+        if getattr(c, "metadata", {}).get("id") not in kanban_ids
+    ]
+    for c in to_remove:
+        if hasattr(timeline_widget, "layout"):
+            timeline_widget.layout.removeWidget(c)
+        c.setParent(None)
+        timeline_widget.cards.remove(c)
+
+
+# --- Kanban to Timeline/Storyboard Conversion ---
+def kanban_card_to_timeline_card(kanban_card):
+    """
+    Convert a KanbanCard to a timeline/storyboard card dict.
+    Copies all relevant fields: id, title, notes (as description), tags, color, links.
+
+    Args:
+        kanban_card: KanbanCard instance.
+    Returns:
+        dict: Timeline card data with keys: id, title, description, tags, color, links.
+    Raises:
+        ValueError: If input is not a KanbanCard or missing metadata.
+    """
+    meta = getattr(kanban_card, "metadata", None)
+    if not meta:
+        raise ValueError("Input is not a KanbanCard or missing metadata")
+    # Map 'notes' to 'description' for timeline compatibility
+    return {
+        "id": meta.get("id"),
+        "title": meta.get("title"),
+        "description": meta.get("notes"),
+        "tags": list(meta.get("tags", [])),
+        "color": meta.get("color"),
+        "links": list(meta.get("links", [])),
+    }
+
+
 """
 kanban_models.py – Data models and dialogs for Kanban board (split from kanban_board2.py)
 
@@ -20,7 +142,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from dataclasses import dataclass
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 
 class KanbanCard(QListWidgetItem):
@@ -194,3 +316,43 @@ class Column:
     layout: QVBoxLayout
     list_widget: QListWidget
     add_btn: QPushButton
+
+    def set_selection_mode(self, mode=None):
+        """
+        Set the selection mode for the column's QListWidget.
+        Default is MultiSelection for multi-card selection.
+        """
+        from PySide6.QtWidgets import QAbstractItemView
+
+        if mode is None:
+            mode = QAbstractItemView.MultiSelection
+        self.list_widget.setSelectionMode(mode)
+
+    def get_selected_cards(self) -> List[KanbanCard]:
+        """
+        Return all selected KanbanCard items in this column.
+        """
+        return [
+            item
+            for item in self.list_widget.selectedItems()
+            if isinstance(item, KanbanCard)
+        ]
+
+
+# --- Kanban Board Multi-Selection Utilities ---
+def enable_multi_selection_for_all_columns(columns: List[Column]):
+    """
+    Enable multi-selection mode for all columns' QListWidget.
+    """
+    for col in columns:
+        col.set_selection_mode()
+
+
+def get_all_selected_kanban_cards(columns: List[Column]) -> List[KanbanCard]:
+    """
+    Return all selected KanbanCard items across all columns.
+    """
+    selected = []
+    for col in columns:
+        selected.extend(col.get_selected_cards())
+    return selected

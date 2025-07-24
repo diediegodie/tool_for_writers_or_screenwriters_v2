@@ -184,8 +184,10 @@ class KanbanBoardWidget(QWidget):
         )
         sync_all_btn.clicked.connect(self._sync_all_to_timeline)
         main_vbox.addWidget(sync_all_btn)
-        self.layout = QHBoxLayout()
-        main_vbox.addLayout(self.layout)
+        from PySide6.QtWidgets import QSplitter
+
+        self.splitter = QSplitter(Qt.Horizontal)
+        main_vbox.addWidget(self.splitter)
         self.setLayout(main_vbox)
         self.columns = []  # List[Column]
         self.column_map = {}  # Dict[str, Column]
@@ -271,8 +273,8 @@ class KanbanBoardWidget(QWidget):
         """
         if title in self.column_map:
             return  # Column already exists
-        col = self._create_column(title)
-        self.layout.addLayout(col.layout)
+        col, col_widget = self._create_column(title)
+        self.splitter.addWidget(col_widget)
         self.columns.append(col)
         self.column_map[title] = col
 
@@ -319,13 +321,14 @@ class KanbanBoardWidget(QWidget):
         ret = msg.exec()
         if ret != QMessageBox.Yes:
             return
-        # Remove from layout and internal lists
-        self.layout.removeItem(col.layout)
-        for i in reversed(range(col.layout.count())):
-            item = col.layout.itemAt(i)
-            widget = item.widget()
-            if widget:
-                widget.setParent(None)
+        # Remove from splitter and internal lists
+        # Find the QWidget for this column in the splitter
+        for i in range(self.splitter.count()):
+            widget = self.splitter.widget(i)
+            # AccessibleName is set to "Kanban Column Widget: {title}"
+            if widget and widget.accessibleName() == f"Kanban Column Widget: {title}":
+                self.splitter.widget(i).setParent(None)
+                break
         self.columns = [c for c in self.columns if c != col]
         del self.column_map[title]
         # No card archiving; cards are deleted with the column
@@ -410,8 +413,8 @@ class KanbanBoardWidget(QWidget):
     def _init_columns(self):
         # Example columns: To Do, In Progress, Done
         for col_name in ["To Do", "In Progress", "Done"]:
-            col = self._create_column(col_name)
-            self.layout.addLayout(col.layout)
+            col, col_widget = self._create_column(col_name)
+            self.splitter.addWidget(col_widget)
             self.columns.append(col)
             self.column_map[col.name] = col
 
@@ -430,7 +433,9 @@ class KanbanBoardWidget(QWidget):
             self.safe_emit_card_added(column_name, text.strip())
             self.trigger_autosave()
 
-    def _create_column(self, title) -> Column:
+    def _create_column(self, title):
+        from PySide6.QtWidgets import QWidget
+
         vbox = QVBoxLayout()
         label = QLabel(title)
         label.setAlignment(Qt.AlignCenter)
@@ -489,14 +494,23 @@ class KanbanBoardWidget(QWidget):
 
         # Add a card details panel below the list widget for navigation UI
         # Only add if not already present (avoid duplicate widgets)
-        from PySide6.QtWidgets import QVBoxLayout as QVBoxLayout2, QWidget
+        from PySide6.QtWidgets import QVBoxLayout as QVBoxLayout2
 
         details_panel = QWidget()
         details_panel.setLayout(QVBoxLayout2())
         details_panel.setVisible(False)
         vbox.addWidget(details_panel)
 
-        return Column(name=title, layout=vbox, list_widget=list_widget, add_btn=add_btn)
+        col_widget = QWidget()
+        col_widget.setLayout(vbox)
+        col_widget.setMinimumWidth(200)
+        col_widget.setAccessibleName(f"Kanban Column Widget: {title}")
+        col_widget.setAccessibleDescription(f"Widget for {title} column, resizable")
+
+        return (
+            Column(name=title, layout=vbox, list_widget=list_widget, add_btn=add_btn),
+            col_widget,
+        )
 
     def _edit_card(
         self, list_widget: QListWidget, column_name: str, item: QListWidgetItem
@@ -582,70 +596,4 @@ class KanbanBoardWidget(QWidget):
 
         list_widget.itemDoubleClicked.connect(handler)
 
-    def _create_column(self, title) -> Column:
-        vbox = QVBoxLayout()
-        label = QLabel(title)
-        label.setAlignment(Qt.AlignCenter)
-        label.setAccessibleName(f"Kanban Column: {title}")
-        label.setAccessibleDescription(f"Column for {title} cards")
-        vbox.addWidget(label)
-
-        list_widget = QListWidget()
-        list_widget.setAccessibleName(f"{title} Card List")
-        list_widget.setAccessibleDescription(f"List of cards in {title} column")
-        vbox.addWidget(list_widget)
-
-        add_btn = QPushButton("Add Card")
-        add_btn.setAccessibleName(f"Add Card to {title}")
-        add_btn.setAccessibleDescription(f"Button to add a card to {title} column")
-        vbox.addWidget(add_btn)
-
-        sync_col_btn = QPushButton("Sync Column to Timeline")
-        sync_col_btn.setAccessibleName(f"Sync {title} Column to Timeline")
-        sync_col_btn.setAccessibleDescription(
-            f"Button to sync all cards in {title} column to the Timeline view"
-        )
-        sync_col_btn.clicked.connect(
-            lambda _, lw=list_widget: self._sync_column_to_timeline(lw)
-        )
-        vbox.addWidget(sync_col_btn)
-
-        edit_btn = QPushButton("Edit Card")
-        edit_btn.setAccessibleName(f"Edit Card in {title}")
-        edit_btn.setAccessibleDescription(
-            f"Button to edit selected card in {title} column"
-        )
-        edit_btn.setVisible(False)
-        vbox.addWidget(edit_btn)
-        delete_btn = QPushButton("Delete Card")
-        delete_btn.setAccessibleName(f"Delete Card in {title}")
-        delete_btn.setAccessibleDescription(
-            f"Button to delete selected card in {title} column"
-        )
-        delete_btn.setVisible(False)
-        vbox.addWidget(delete_btn)
-
-        add_btn.clicked.connect(
-            lambda _, lw=list_widget, col=title: self._add_card(lw, col)
-        )
-
-        list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
-        list_widget.customContextMenuRequested.connect(
-            lambda pos, lw=list_widget, col=title: self._show_card_context_menu(
-                lw, col, pos
-            )
-        )
-
-        # Install double-click handler
-        self._install_double_click(list_widget, title)
-
-        # Add a card details panel below the list widget for navigation UI
-        # Only add if not already present (avoid duplicate widgets)
-        from PySide6.QtWidgets import QVBoxLayout as QVBoxLayout2, QWidget
-
-        details_panel = QWidget()
-        details_panel.setLayout(QVBoxLayout2())
-        details_panel.setVisible(False)
-        vbox.addWidget(details_panel)
-
-        return Column(name=title, layout=vbox, list_widget=list_widget, add_btn=add_btn)
+    # ...existing code...

@@ -68,6 +68,40 @@ class TimelineCard(QFrame):
 
 
 class TimelineBoardWidget(QWidget):
+    def save_state(self):
+        """
+        Returns a list of dicts representing the current timeline board state (for storage).
+        """
+        return [getattr(card, "metadata", {}) for card in self.cards]
+
+    def load_state(self, state):
+        """
+        Loads the timeline board state from a list of dicts.
+        """
+        for i in reversed(range(self.layout.count())):
+            self.layout.itemAt(i).widget().setParent(None)
+        self.cards.clear()
+        for meta in state:
+            self.add_card(meta)
+
+    def save_to_storage(self):
+        """
+        Save the current timeline board to persistent storage (JSON).
+        """
+        from GUI.storage import timeline_store
+
+        timeline_store.save_timeline_board(self.save_state())
+
+    def load_from_storage(self):
+        """
+        Load the timeline board from persistent storage (JSON).
+        """
+        from GUI.storage import timeline_store
+
+        state = timeline_store.load_timeline_board()
+        if state:
+            self.load_state(state)
+
     orderChanged = Signal(list)  # Emits list of card titles in new order
 
     def __init__(self, parent=None):
