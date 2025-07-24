@@ -48,6 +48,14 @@ class CharacterPanel(QWidget):
         btn_layout.addWidget(self.delete_btn)
         self.layout.addLayout(btn_layout)
 
+        # Character insertion button
+        self.insert_btn = QPushButton("Insert into Scene")
+        self.insert_btn.setToolTip(
+            "Insert selected character reference into the current scene"
+        )
+        self.insert_btn.clicked.connect(self.insert_character_reference)
+        self.layout.addWidget(self.insert_btn)
+
         self.setLayout(self.layout)
         self.add_btn.clicked.connect(self.add_character)
         self.edit_btn.clicked.connect(self.edit_character)
@@ -98,3 +106,40 @@ class CharacterPanel(QWidget):
         self.refresh_list()
         self.name_input.clear()
         self.desc_input.clear()
+
+    def insert_character_reference(self):
+        """Insert a reference to the selected character into the active project editor"""
+        idx = self.list_widget.currentRow()
+        if idx < 0:
+            QMessageBox.warning(
+                self, "Selection Error", "Select a character to insert."
+            )
+            return
+
+        char = self.store.list()[idx]
+        char_ref = f"[{char.name}]"
+
+        # Try to find the parent project editor
+        parent = self.parent()
+        while parent and not hasattr(parent, "text_editor"):
+            parent = parent.parent() if hasattr(parent, "parent") else None
+
+        if parent and hasattr(parent, "text_editor"):
+            # Insert character reference at cursor position
+            cursor = parent.text_editor.textCursor()
+            cursor.insertText(char_ref)
+            parent.text_editor.setFocus()
+            QMessageBox.information(
+                self, "Inserted", f"Character reference '{char_ref}' inserted."
+            )
+            print(f"[DEBUG] Inserted character reference: {char_ref}")
+        else:
+            # Copy to clipboard as fallback
+            from PySide6.QtWidgets import QApplication
+
+            clipboard = QApplication.clipboard()
+            clipboard.setText(char_ref)
+            QMessageBox.information(
+                self, "Copied", f"Character reference '{char_ref}' copied to clipboard."
+            )
+            print(f"[DEBUG] Copied character reference to clipboard: {char_ref}")

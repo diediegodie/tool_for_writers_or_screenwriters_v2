@@ -48,6 +48,14 @@ class LocationPanel(QWidget):
         btn_layout.addWidget(self.delete_btn)
         self.layout.addLayout(btn_layout)
 
+        # Location insertion button
+        self.insert_btn = QPushButton("Insert into Scene")
+        self.insert_btn.setToolTip(
+            "Insert selected location reference into the current scene"
+        )
+        self.insert_btn.clicked.connect(self.insert_location_reference)
+        self.layout.addWidget(self.insert_btn)
+
         self.setLayout(self.layout)
         self.add_btn.clicked.connect(self.add_location)
         self.edit_btn.clicked.connect(self.edit_location)
@@ -96,3 +104,38 @@ class LocationPanel(QWidget):
         self.refresh_list()
         self.name_input.clear()
         self.desc_input.clear()
+
+    def insert_location_reference(self):
+        """Insert a reference to the selected location into the active project editor"""
+        idx = self.list_widget.currentRow()
+        if idx < 0:
+            QMessageBox.warning(self, "Selection Error", "Select a location to insert.")
+            return
+
+        loc = self.store.list()[idx]
+        loc_ref = f"@{loc.name}"
+
+        # Try to find the parent project editor
+        parent = self.parent()
+        while parent and not hasattr(parent, "text_editor"):
+            parent = parent.parent() if hasattr(parent, "parent") else None
+
+        if parent and hasattr(parent, "text_editor"):
+            # Insert location reference at cursor position
+            cursor = parent.text_editor.textCursor()
+            cursor.insertText(loc_ref)
+            parent.text_editor.setFocus()
+            QMessageBox.information(
+                self, "Inserted", f"Location reference '{loc_ref}' inserted."
+            )
+            print(f"[DEBUG] Inserted location reference: {loc_ref}")
+        else:
+            # Copy to clipboard as fallback
+            from PySide6.QtWidgets import QApplication
+
+            clipboard = QApplication.clipboard()
+            clipboard.setText(loc_ref)
+            QMessageBox.information(
+                self, "Copied", f"Location reference '{loc_ref}' copied to clipboard."
+            )
+            print(f"[DEBUG] Copied location reference to clipboard: {loc_ref}")

@@ -23,9 +23,11 @@ from PySide6.QtWidgets import (
     QListWidget as QtListWidget,
     QFrame,
     QTabWidget,
+    QMenuBar,
+    QMenu,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut
 
 # Local storage for autosave/offline
 from GUI.storage import project_store
@@ -47,11 +49,15 @@ class ProjectEditorWindow(QWidget):
         project_store.save_projects([{"chapters": self.chapters}])
         # Optionally, add versioning logic here if needed
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, project=None):
         super().__init__(parent)
         self.setWindowTitle("Project Editor")
         self.resize(1000, 700)
-        self.chapters = []  # List of dicts: {"title": str, "scenes": [str]}
+        # Accept project data if provided, else default to empty
+        if project and isinstance(project, dict) and "chapters" in project:
+            self.chapters = project["chapters"]
+        else:
+            self.chapters = []  # List of dicts: {"title": str, "scenes": [str]}
         self.current_scene_idx = None
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setSingleShot(True)
@@ -59,6 +65,12 @@ class ProjectEditorWindow(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        # Create main layout
+        main_layout = QVBoxLayout(self)
+
+        # Create menu bar
+        self._create_menu_bar(main_layout)
+
         tab_widget = QTabWidget(self)
         self.tab_widget = tab_widget  # Store reference for testing and access
 
@@ -104,6 +116,14 @@ class ProjectEditorWindow(QWidget):
         scene_btns.addWidget(btn_edit_scene)
         scene_btns.addWidget(btn_delete_scene)
         left_layout.addLayout(scene_btns)
+
+        # Export button
+        btn_export = QPushButton("Export Project")
+        btn_export.setStyleSheet(
+            "background-color: #4CAF50; color: white; font-weight: bold;"
+        )
+        btn_export.clicked.connect(self._show_export_dialog)
+        left_layout.addWidget(btn_export)
 
         splitter.addWidget(left_panel)
 
@@ -160,6 +180,14 @@ class ProjectEditorWindow(QWidget):
             )
         )
         toolbar.addWidget(btn_add_footnote)
+
+        # Version history button
+        btn_version_history = QPushButton("Version History")
+        btn_version_history.clicked.connect(self.show_version_history)
+        btn_version_history.setToolTip(
+            "View and restore previous versions of the current scene"
+        )
+        toolbar.addWidget(btn_version_history)
 
         # Version history button
         btn_version_history = QPushButton("Version History")
@@ -242,10 +270,158 @@ class ProjectEditorWindow(QWidget):
         kanban_tab = KanbanBoardWidget(self, get_available_links)
         tab_widget.addTab(kanban_tab, "Kanban Board")
 
-        main_layout = QHBoxLayout(self)
         main_layout.addWidget(tab_widget)
 
         self._updating_text = False  # Prevent recursion
+
+        # --- Context Menu for Additional Features ---
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+
+        # Set up global keyboard shortcuts
+        self._setup_keyboard_shortcuts()
+
+    def _setup_keyboard_shortcuts(self):
+        """Setup global keyboard shortcuts for the editor"""
+        # Quick access to panels
+        char_shortcut = QShortcut(QKeySequence("F1"), self)
+        char_shortcut.activated.connect(self._open_characters_panel)
+
+        loc_shortcut = QShortcut(QKeySequence("F2"), self)
+        loc_shortcut.activated.connect(self._open_locations_panel)
+
+        event_shortcut = QShortcut(QKeySequence("F3"), self)
+        event_shortcut.activated.connect(self._open_events_panel)
+
+        # Quick export
+        export_shortcut = QShortcut(QKeySequence("F4"), self)
+        export_shortcut.activated.connect(self._show_export_dialog)
+
+        print(
+            "[DEBUG] Keyboard shortcuts configured: F1=Characters, F2=Locations, F3=Events, F4=Export"
+        )
+
+    def _create_menu_bar(self, layout):
+        """Create and setup the menu bar"""
+        menu_bar = QMenuBar(self)
+        layout.addWidget(menu_bar)
+
+        # File Menu
+        file_menu = menu_bar.addMenu("&File")
+
+        export_action = QAction("&Export Project...", self)
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self._show_export_dialog)
+        file_menu.addAction(export_action)
+
+        file_menu.addSeparator()
+
+        save_action = QAction("&Save", self)
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(lambda: self._autosave())
+        file_menu.addAction(save_action)
+
+        # Edit Menu
+        edit_menu = menu_bar.addMenu("&Edit")
+
+        undo_action = QAction("&Undo", self)
+        undo_action.setShortcut("Ctrl+Z")
+        undo_action.triggered.connect(self._handle_undo)
+        edit_menu.addAction(undo_action)
+
+        edit_menu.addSeparator()
+
+        version_action = QAction("&Version History...", self)
+        version_action.triggered.connect(self.show_version_history)
+        edit_menu.addAction(version_action)
+
+        # Insert Menu
+        insert_menu = menu_bar.addMenu("&Insert")
+
+        annotation_action = QAction("&Annotation...", self)
+        annotation_action.triggered.connect(
+            lambda: add_annotation(
+                self,
+                self.text_editor,
+                self.chapter_list,
+                self.scene_list,
+                self.chapters,
+                self._refresh_annotation_list,
+            )
+        )
+        insert_menu.addAction(annotation_action)
+
+        footnote_action = QAction("&Footnote...", self)
+        footnote_action.triggered.connect(
+            lambda: add_footnote(
+                self,
+                self.text_editor,
+                self.chapter_list,
+                self.scene_list,
+                self.chapters,
+                self._refresh_annotation_list,
+            )
+        )
+        insert_menu.addAction(footnote_action)
+
+        # Navigation Menu
+        nav_menu = menu_bar.addMenu("&Navigation")
+
+        prev_chapter_action = QAction("Previous &Chapter", self)
+        prev_chapter_action.setShortcut("Ctrl+Shift+Up")
+        prev_chapter_action.triggered.connect(self.go_to_prev_chapter)
+        nav_menu.addAction(prev_chapter_action)
+
+        next_chapter_action = QAction("Next C&hapter", self)
+        next_chapter_action.setShortcut("Ctrl+Shift+Down")
+        next_chapter_action.triggered.connect(self.go_to_next_chapter)
+        nav_menu.addAction(next_chapter_action)
+
+        nav_menu.addSeparator()
+
+        prev_scene_action = QAction("Previous &Scene", self)
+        prev_scene_action.setShortcut("Ctrl+Up")
+        prev_scene_action.triggered.connect(self.go_to_prev_scene)
+        nav_menu.addAction(prev_scene_action)
+
+        next_scene_action = QAction("Next S&cene", self)
+        next_scene_action.setShortcut("Ctrl+Down")
+        next_scene_action.triggered.connect(self.go_to_next_scene)
+        nav_menu.addAction(next_scene_action)
+
+        nav_menu.addSeparator()
+
+        first_scene_action = QAction("&First Scene", self)
+        first_scene_action.setShortcut("Ctrl+Home")
+        first_scene_action.triggered.connect(lambda: self._navigate_to_scene(0))
+        nav_menu.addAction(first_scene_action)
+
+        last_scene_action = QAction("&Last Scene", self)
+        last_scene_action.setShortcut("Ctrl+End")
+        last_scene_action.triggered.connect(lambda: self._navigate_to_scene(-1))
+        nav_menu.addAction(last_scene_action)
+
+        # View Menu
+        view_menu = menu_bar.addMenu("&View")
+
+        sync_timeline_action = QAction("Sync to &Timeline", self)
+        sync_timeline_action.triggered.connect(self._sync_scenes_to_timeline)
+        view_menu.addAction(sync_timeline_action)
+
+        # Tools Menu
+        tools_menu = menu_bar.addMenu("&Tools")
+
+        characters_action = QAction("&Characters Panel...", self)
+        characters_action.triggered.connect(self._open_characters_panel)
+        tools_menu.addAction(characters_action)
+
+        locations_action = QAction("&Locations Panel...", self)
+        locations_action.triggered.connect(self._open_locations_panel)
+        tools_menu.addAction(locations_action)
+
+        events_action = QAction("&Events Panel...", self)
+        events_action.triggered.connect(self._open_events_panel)
+        tools_menu.addAction(events_action)
 
     def _sync_scenes_to_timeline(self):
         """Push current scenes to the timeline widget."""
@@ -463,3 +639,203 @@ class ProjectEditorWindow(QWidget):
         if reply == QMessageBox.Yes:
             self.chapters[cidx]["scenes"].pop(sidx)
             self.scene_list.takeItem(sidx)
+
+    # Navigation functions for toolbar integration
+    def go_to_prev_chapter(self):
+        """Navigate to previous chapter"""
+        current = self.chapter_list.currentRow()
+        if current > 0:
+            self.chapter_list.setCurrentRow(current - 1)
+            print(f"[DEBUG] Navigated to previous chapter: {current - 1}")
+
+    def go_to_next_chapter(self):
+        """Navigate to next chapter"""
+        current = self.chapter_list.currentRow()
+        if current < self.chapter_list.count() - 1:
+            self.chapter_list.setCurrentRow(current + 1)
+            print(f"[DEBUG] Navigated to next chapter: {current + 1}")
+
+    def go_to_prev_scene(self):
+        """Navigate to previous scene in current chapter"""
+        current = self.scene_list.currentRow()
+        if current > 0:
+            self.scene_list.setCurrentRow(current - 1)
+            print(f"[DEBUG] Navigated to previous scene: {current - 1}")
+
+    def go_to_next_scene(self):
+        """Navigate to next scene in current chapter"""
+        current = self.scene_list.currentRow()
+        if current < self.scene_list.count() - 1:
+            self.scene_list.setCurrentRow(current + 1)
+            print(f"[DEBUG] Navigated to next scene: {current + 1}")
+
+    def _insert_numbered_list(self):
+        """Insert a numbered list at cursor position"""
+        cursor = self.text_editor.textCursor()
+        cursor.insertText("1. ")
+        self.text_editor.setTextCursor(cursor)
+        print("[DEBUG] Inserted numbered list")
+
+    def _handle_undo(self):
+        """Handle undo with debug information"""
+        self.text_editor.undo()
+        print("[DEBUG] Undo action triggered")
+
+    def toggle_markdown_preview(self, enabled):
+        """Toggle markdown preview mode"""
+        self.markdown_preview_enabled = enabled
+        print(f"[DEBUG] Markdown preview {'enabled' if enabled else 'disabled'}")
+        # TODO: Implement actual markdown preview functionality
+
+    def _show_export_dialog(self):
+        """Show the export dialog"""
+        from GUI.windows.export_dialog import ExportDialog
+
+        # Prepare project data for export
+        project_data = {
+            "title": getattr(self, "project_title", "Untitled Project"),
+            "chapters": self.chapters,
+            "metadata": {
+                "created": getattr(self, "created_date", "Unknown"),
+                "modified": getattr(self, "modified_date", "Unknown"),
+                "version": "1.0",
+            },
+        }
+
+        dialog = ExportDialog(project_data, self)
+        dialog.exec()
+        print("[DEBUG] Export dialog opened")
+
+    def show_annotation_details(self, annotation_data):
+        """Show detailed annotation/footnote information"""
+        from PySide6.QtWidgets import (
+            QDialog,
+            QVBoxLayout,
+            QLabel,
+            QTextEdit,
+            QPushButton,
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{annotation_data.get('type', 'Note').title()} Details")
+        dialog.setMinimumSize(400, 300)
+
+        layout = QVBoxLayout(dialog)
+
+        # Display annotation text and note
+        layout.addWidget(QLabel(f"Type: {annotation_data.get('type', 'Note')}"))
+        layout.addWidget(QLabel("Text:"))
+
+        text_display = QTextEdit()
+        text_display.setPlainText(annotation_data.get("text", ""))
+        text_display.setMaximumHeight(100)
+        text_display.setReadOnly(True)
+        layout.addWidget(text_display)
+
+        layout.addWidget(QLabel("Note:"))
+        note_display = QTextEdit()
+        note_display.setPlainText(annotation_data.get("note", ""))
+        note_display.setReadOnly(True)
+        layout.addWidget(note_display)
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+
+        dialog.exec()
+        print(f"[DEBUG] Showing {annotation_data.get('type', 'note')} details")
+
+    def _show_context_menu(self, position):
+        """Show context menu with additional project actions"""
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtGui import QAction
+
+        menu = QMenu(self)
+
+        # Export actions
+        export_action = QAction("Export Project...", self)
+        export_action.triggered.connect(self._show_export_dialog)
+        menu.addAction(export_action)
+
+        # Version history
+        version_action = QAction("Show Version History...", self)
+        version_action.triggered.connect(self.show_version_history)
+        menu.addAction(version_action)
+
+        menu.addSeparator()
+
+        # Scene navigation
+        first_scene_action = QAction("Go to First Scene", self)
+        first_scene_action.triggered.connect(lambda: self._navigate_to_scene(0))
+        menu.addAction(first_scene_action)
+
+        last_scene_action = QAction("Go to Last Scene", self)
+        last_scene_action.triggered.connect(lambda: self._navigate_to_scene(-1))
+        menu.addAction(last_scene_action)
+
+        menu.addSeparator()
+
+        # Timeline sync
+        sync_action = QAction("Sync Scenes to Timeline", self)
+        sync_action.triggered.connect(self._sync_scenes_to_timeline)
+        menu.addAction(sync_action)
+
+        menu.exec(self.mapToGlobal(position))
+
+    def _navigate_to_scene(self, scene_index):
+        """Navigate to a specific scene by index"""
+        if self.chapter_list.currentRow() < 0:
+            print("[DEBUG] No chapter selected, cannot navigate to scene")
+            return
+
+        scene_count = self.scene_list.count()
+        if scene_count == 0:
+            print("[DEBUG] No scenes available in current chapter")
+            return
+
+        if scene_index == -1:  # Last scene
+            scene_index = scene_count - 1
+        elif scene_index >= scene_count:
+            scene_index = scene_count - 1
+        elif scene_index < 0:
+            scene_index = 0
+
+        self.scene_list.setCurrentRow(scene_index)
+        print(f"[DEBUG] Navigated to scene index: {scene_index}")
+
+    def _open_characters_panel(self):
+        """Open the Characters panel as a separate window"""
+        from GUI.windows.character_panel import CharacterPanel
+
+        if not hasattr(self, "_characters_panel"):
+            self._characters_panel = CharacterPanel(self)
+            self._characters_panel.setWindowTitle("Characters Panel")
+
+        self._characters_panel.show()
+        self._characters_panel.raise_()
+        print("[DEBUG] Opened Characters panel")
+
+    def _open_locations_panel(self):
+        """Open the Locations panel as a separate window"""
+        from GUI.windows.location_panel import LocationPanel
+
+        if not hasattr(self, "_locations_panel"):
+            self._locations_panel = LocationPanel(self)
+            self._locations_panel.setWindowTitle("Locations Panel")
+
+        self._locations_panel.show()
+        self._locations_panel.raise_()
+        print("[DEBUG] Opened Locations panel")
+
+    def _open_events_panel(self):
+        """Open the Events panel as a separate window"""
+        from GUI.windows.event_panel import EventPanel
+
+        if not hasattr(self, "_events_panel"):
+            self._events_panel = EventPanel(self)
+            self._events_panel.setWindowTitle("Events Panel")
+
+        self._events_panel.show()
+        self._events_panel.raise_()
+        print("[DEBUG] Opened Events panel")

@@ -1,17 +1,5 @@
 {
-  "To Do": [
-    {
-      "title": "asdasda",
-      "metadata": {
-        "id": "fc27b64d-1b7b-4e52-8391-b2adc609c4c7",
-        "title": "asdasda",
-        "notes": "",
-        "tags": [],
-        "color": null,
-        "links": []
-      }
-    }
-  ],
+  "To Do": [],
   "In Progress": [
     {
       "title": "Move Me",
@@ -47,17 +35,5 @@
       }
     }
   ],
-  "Done": [
-    {
-      "title": "dcccdcsdsd",
-      "metadata": {
-        "id": "910ec5b5-e010-436f-bcd2-36c56c8b7824",
-        "title": "dcccdcsdsd",
-        "notes": "",
-        "tags": [],
-        "color": null,
-        "links": []
-      }
-    }
-  ]
+  "Done": []
 }
