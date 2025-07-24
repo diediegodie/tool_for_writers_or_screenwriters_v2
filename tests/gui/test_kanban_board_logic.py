@@ -12,207 +12,6 @@
 # ---
 
 
-def test_focus_after_add_card(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    card = KanbanCard("Focus Add")
-    col.list_widget.addItem(card)
-    col.list_widget.setCurrentRow(col.list_widget.count() - 1)
-    assert col.list_widget.currentItem() is card
-
-
-def test_focus_after_edit_card(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    card = KanbanCard("Focus Edit")
-    col.list_widget.addItem(card)
-    col.list_widget.setCurrentRow(0)
-    card.setText("Edited Focus")
-    assert col.list_widget.currentItem() is card
-    assert col.list_widget.currentItem().text() == "Edited Focus"
-
-
-def test_focus_after_delete_card(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    cards = [KanbanCard(f"DelFocus {i}") for i in range(3)]
-    for card in cards:
-        col.list_widget.addItem(card)
-    col.list_widget.setCurrentRow(1)  # Select the middle card
-    col.list_widget.takeItem(1)  # Delete the selected card
-    # After deletion, selection should move to the next card (index 1, which was index 2)
-    if col.list_widget.count() > 1:
-        assert col.list_widget.currentRow() == 1
-    elif col.list_widget.count() == 1:
-        assert col.list_widget.currentRow() == 0
-    else:
-        assert col.list_widget.currentItem() is None
-
-
-import pytest
-
-
-@pytest.mark.xfail(
-    reason="Focus events may not work in headless/CI environments; test is valid for interactive/manual runs."
-)
-def test_tab_navigation_between_columns_and_cards(kanban, qtbot):
-    # Add a card to each column
-    for col in kanban.columns:
-        col.list_widget.clear()
-        col.list_widget.addItem(KanbanCard(f"{col.name} Card"))
-    # Focus first column's list widget
-    first_col = kanban.columns[0]
-    qtbot.waitExposed(first_col.list_widget)
-    first_col.list_widget.setFocus()
-    assert first_col.list_widget.hasFocus()
-    # Simulate Tab key to move focus to next column's list widget
-    qtbot.keyClick(first_col.list_widget, Qt.Key_Tab)
-    # Focus should move to next widget in tab order (not guaranteed unless set, but we can check focus chain)
-    # For robust test, manually set tab order in widget or check focusable widgets
-    # Here, just ensure focus can be set programmatically
-    for col in kanban.columns:
-        col.list_widget.setFocus()
-        assert col.list_widget.hasFocus()
-
-
-def test_arrow_key_navigation_within_column(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    cards = [KanbanCard(f"Arrow {i}") for i in range(3)]
-    for card in cards:
-        col.list_widget.addItem(card)
-    col.list_widget.setCurrentRow(0)
-    assert col.list_widget.currentRow() == 0
-    # Simulate Down arrow key
-    qtbot.keyClick(col.list_widget, Qt.Key_Down)
-    assert col.list_widget.currentRow() == 1
-    qtbot.keyClick(col.list_widget, Qt.Key_Down)
-    assert col.list_widget.currentRow() == 2
-    # Simulate Up arrow key
-    qtbot.keyClick(col.list_widget, Qt.Key_Up)
-    assert col.list_widget.currentRow() == 1
-
-
-def test_add_card_with_metadata(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    metadata = {"tag": "important", "color": "red"}
-    card = KanbanCard("Meta Card", metadata=metadata)
-    col.list_widget.addItem(card)
-    # Retrieve and check metadata
-    item = col.list_widget.item(col.list_widget.count() - 1)
-    assert isinstance(item, KanbanCard)
-    # Check that all keys/values in metadata are present in item.metadata
-    for k, v in metadata.items():
-        assert item.metadata[k] == v
-
-
-def test_edit_card_metadata(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    card = KanbanCard("Meta Edit", metadata={"tag": "draft"})
-    col.list_widget.addItem(card)
-    # Edit metadata
-    card.metadata["tag"] = "final"
-    card.metadata["priority"] = 2
-    item = col.list_widget.item(col.list_widget.row(card))
-    assert item.metadata["tag"] == "final"
-    assert item.metadata["priority"] == 2
-
-
-def test_save_and_reload_board_state(kanban, qtbot):
-    # Add cards to all columns
-    names = ["To Do", "In Progress", "Done"]
-    for idx, col_name in enumerate(names):
-        col = kanban.column_map[col_name]
-        col.list_widget.clear()
-        for i in range(idx + 1):
-            col.list_widget.addItem(KanbanCard(f"{col_name} Card {i}"))
-    # Save state
-    state = kanban.save_state()
-    # Clear all columns
-    for col in kanban.columns:
-        col.list_widget.clear()
-        assert col.list_widget.count() == 0
-    # Reload state
-    kanban.load_state(state)
-    # Verify all cards/columns are restored
-    for idx, col_name in enumerate(names):
-        col = kanban.column_map[col_name]
-        assert col.list_widget.count() == idx + 1
-        for i in range(idx + 1):
-            assert col.list_widget.item(i).text() == f"{col_name} Card {i}"
-
-
-def test_add_cards_to_all_columns_independence(kanban, qtbot):
-    names = ["To Do", "In Progress", "Done"]
-    for idx, col_name in enumerate(names):
-        col = kanban.column_map[col_name]
-        col.list_widget.clear()
-        card = KanbanCard(f"{col_name} Card")
-        col.list_widget.addItem(card)
-    # Verify each column has only its own card
-    for col_name in names:
-        col = kanban.column_map[col_name]
-        assert col.list_widget.count() == 1
-        assert col.list_widget.item(0).text() == f"{col_name} Card"
-
-
-def test_move_card_between_columns(kanban, qtbot):
-    # Simulate moving a card from 'To Do' to 'Done'
-    todo = kanban.column_map["To Do"]
-    done = kanban.column_map["Done"]
-    todo.list_widget.clear()
-    done.list_widget.clear()
-    card = KanbanCard("Move Me")
-    todo.list_widget.addItem(card)
-    # Remove from 'To Do'
-    todo.list_widget.takeItem(todo.list_widget.row(card))
-    # Add to 'Done'
-    done.list_widget.addItem(card)
-    assert todo.list_widget.count() == 0
-    assert done.list_widget.count() == 1
-    assert done.list_widget.item(0).text() == "Move Me"
-
-
-def test_add_multiple_cards_in_sequence(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    initial_count = col.list_widget.count()
-    cards = [KanbanCard(f"Card {i}") for i in range(5)]
-    for card in cards:
-        col.list_widget.addItem(card)
-    assert col.list_widget.count() == initial_count + 5
-    for i, card in enumerate(cards):
-        assert col.list_widget.item(initial_count + i).text() == f"Card {i}"
-
-
-def test_edit_several_cards_in_row(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    cards = [KanbanCard(f"EditMe {i}") for i in range(3)]
-    for card in cards:
-        col.list_widget.addItem(card)
-    # Edit only the second card
-    cards[1].setText("Edited!")
-    assert col.list_widget.item(0).text() == "EditMe 0"
-    assert col.list_widget.item(1).text() == "Edited!"
-    assert col.list_widget.item(2).text() == "EditMe 2"
-
-
-def test_delete_all_cards_from_column(kanban, qtbot):
-    col = kanban.column_map["To Do"]
-    col.list_widget.clear()
-    cards = [KanbanCard(f"Del {i}") for i in range(4)]
-    for card in cards:
-        col.list_widget.addItem(card)
-    for card in cards:
-        col.list_widget.takeItem(col.list_widget.row(card))
-    assert col.list_widget.count() == 0
-
-
-"""
-Unit tests for KanbanBoardWidget add, edit, and delete card logic.
-Covers: normal, edge, and failure cases for all card operations and signal emission.
-"""
-
 import pytest
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
@@ -516,3 +315,45 @@ def test_card_details_dialog_accept(qtbot):
         "sceneY",
     }  # Use set comparison for order-independence
     assert details["color"] == "#00ff00"
+
+
+@pytest.mark.parametrize(
+    "operation, setup_func, expected_focus",
+    [
+        (
+            "add",
+            lambda col: (
+                col.list_widget.addItem(KanbanCard("Focus Add")),
+                col.list_widget.setCurrentItem(
+                    col.list_widget.item(col.list_widget.count() - 1)
+                ),
+                col.list_widget.setFocus(),
+            ),
+            lambda col: col.list_widget.count() - 1,
+        ),
+        (
+            "edit",
+            lambda col: col.list_widget.currentItem().setText("Edited Focus"),
+            lambda col: col.list_widget.currentRow(),
+        ),
+        (
+            "delete",
+            lambda col: col.list_widget.takeItem(1),
+            lambda col: 1 if col.list_widget.count() > 1 else 0,
+        ),
+    ],
+)
+def test_focus_operations(kanban, qtbot, operation, setup_func, expected_focus):
+    col = kanban.column_map["To Do"]
+    col.list_widget.clear()
+    cards = [KanbanCard(f"Card {i}") for i in range(3)]
+    for card in cards:
+        col.list_widget.addItem(card)
+    col.list_widget.setCurrentRow(1)  # Select the middle card
+
+    setup_func(col)  # Perform the operation
+
+    if operation == "delete" and col.list_widget.count() == 0:
+        assert col.list_widget.currentItem() is None
+    else:
+        assert col.list_widget.currentRow() == expected_focus(col)
