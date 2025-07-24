@@ -114,6 +114,7 @@ class ProjectEditorWindow(QWidget):
 
         # Formatting toolbar
         toolbar = QToolBar()
+        self.toolbar = toolbar  # Expose toolbar for testing
         btn_bold = QPushButton("B")
         btn_bold.setCheckable(True)
         btn_bold.setStyleSheet("font-weight: bold;")

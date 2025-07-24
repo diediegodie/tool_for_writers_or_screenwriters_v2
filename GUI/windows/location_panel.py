@@ -5,7 +5,7 @@ Follows the structure of kanban_board.py, with UI/event logic separated from mod
 """
 
 import uuid
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QPushButton,

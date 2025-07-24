@@ -1,175 +1,24 @@
-"""
-Project Editor Window for Writer & Screenwriter Assistant
-- Chapter and Scene list with drag-and-drop reordering
-- Add/edit/delete chapters and scenes
 
-Follows project structure and coding standards in docs/PLANNING.md and docs/instructions.instructions.md
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-'''
-    QPushButton,
-    QListWidget,
-    QListWidgetItem,
-    QLineEdit,
-    QLabel,
-    QMessageBox,
-    QInputDialog,
-    QTextEdit,
-    QToolBar,
-    QSplitter,
-    QListWidget as QtListWidget,
-    QFrame,
-    QTabWidget,
-)
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+# Project Editor Window is now split into feature modules:
+# - ui_main.py: core window and layout
+# - ui_toolbar.py: toolbar and navigation buttons
+# - ui_annotations.py: annotations panel logic
+# - ui_timeline.py: timeline-related widgets and logic
+# - utils_ui.py: helper functions or small reusable UI elements
 
-# Local storage for autosave/offline
-from GUI.storage import project_store
-from GUI.windows.project_editor.timeline_tab import TimelineTab
-from GUI.windows.project_editor.annotations import (
-    add_footnote,
-    add_annotation,
-    refresh_annotation_list,
-    on_annotation_clicked,
-)
+from .ui_main import ProjectEditorWindow
 
-
-class ProjectEditorWindow(QWidget):
-    def _autosave(self):
-        """Autosave the current chapters/scenes to local storage."""
-        # Reason: This method is required for QTimer and is missing, causing AttributeError in tests.
-        # Save chapters to local storage (offline sync)
-        project_store.save_projects([{"chapters": self.chapters}])
-        # Optionally, add versioning logic here if needed
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Project Editor")
-        self.resize(1000, 700)
-        self.chapters = []  # List of dicts: {"title": str, "scenes": [str]}
-        self.current_scene_idx = None
-        self._autosave_timer = QTimer(self)
-        self._autosave_timer.setSingleShot(True)
-        self._autosave_timer.timeout.connect(self._autosave)
-        self._setup_ui()
-
-    def _setup_ui(self):
-        tab_widget = QTabWidget(self)
-
-        # --- Main Editor Tab ---
-        splitter = QSplitter(self)
-        splitter.setChildrenCollapsible(False)
-
-        # Left panel: Chapters and Scenes
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
-        left_layout.addWidget(QLabel("Chapters"))
-        self.chapter_list = QListWidget()
-        self.chapter_list.setDragDropMode(QListWidget.InternalMove)
-        self.chapter_list.currentItemChanged.connect(self._on_chapter_selected)
-        left_layout.addWidget(self.chapter_list)
-
-        chapter_btns = QHBoxLayout()
-        btn_add_chapter = QPushButton("Add Chapter")
-        btn_edit_chapter = QPushButton("Edit Chapter")
-        btn_delete_chapter = QPushButton("Delete Chapter")
-        btn_add_chapter.clicked.connect(self._add_chapter)
-        btn_edit_chapter.clicked.connect(self._edit_chapter)
-        btn_delete_chapter.clicked.connect(self._delete_chapter)
-        chapter_btns.addWidget(btn_add_chapter)
-        chapter_btns.addWidget(btn_edit_chapter)
-        chapter_btns.addWidget(btn_delete_chapter)
-        left_layout.addLayout(chapter_btns)
-
-        left_layout.addWidget(QLabel("Scenes"))
-        self.scene_list = QListWidget()
-        self.scene_list.setDragDropMode(QListWidget.InternalMove)
-        self.scene_list.currentItemChanged.connect(self._on_scene_selected)
-        left_layout.addWidget(self.scene_list)
-
-        scene_btns = QHBoxLayout()
-        btn_add_scene = QPushButton("Add Scene")
-        btn_edit_scene = QPushButton("Edit Scene")
-        btn_delete_scene = QPushButton("Delete Scene")
-        btn_add_scene.clicked.connect(self._add_scene)
-        btn_edit_scene.clicked.connect(self._edit_scene)
-        btn_delete_scene.clicked.connect(self._delete_scene)
-        scene_btns.addWidget(btn_add_scene)
-        scene_btns.addWidget(btn_edit_scene)
-        scene_btns.addWidget(btn_delete_scene)
-        left_layout.addLayout(scene_btns)
-
-        splitter.addWidget(left_panel)
-
-        # Center panel: Scene Editor
-        center_panel = QWidget()
-        center_layout = QVBoxLayout(center_panel)
-        center_layout.addWidget(QLabel("Scene Editor"))
-
-        # Formatting toolbar
-        toolbar = QToolBar()
-        btn_bold = QPushButton("B")
-        btn_bold.setCheckable(True)
-        btn_bold.setStyleSheet("font-weight: bold;")
-        btn_bold.clicked.connect(self._toggle_bold)
-        toolbar.addWidget(btn_bold)
-
-        btn_italic = QPushButton("I")
-        btn_italic.setCheckable(True)
-        btn_italic.setStyleSheet("font-style: italic;")
-        btn_italic.clicked.connect(self._toggle_italic)
-        toolbar.addWidget(btn_italic)
-
-        btn_underline = QPushButton("U")
-        btn_underline.setCheckable(True)
-        btn_underline.setStyleSheet("text-decoration: underline;")
-        btn_underline.clicked.connect(self._toggle_underline)
-        toolbar.addWidget(btn_underline)
-
-        # Annotation button
-        btn_add_annotation = QPushButton("Add Annotation")
-        btn_add_annotation.clicked.connect(
-            lambda: add_annotation(
-                self,
-                self.text_editor,
-                self.chapter_list,
-                self.scene_list,
-                self.chapters,
-                self._refresh_annotation_list,
-            )
-        )
-        toolbar.addWidget(btn_add_annotation)
-
-        # Footnote button
-        btn_add_footnote = QPushButton("Add Footnote")
-        btn_add_footnote.clicked.connect(
-            lambda: add_footnote(
-                self,
-                self.text_editor,
-                self.chapter_list,
-                self.scene_list,
-                self.chapters,
-                self._refresh_annotation_list,
-            )
-        )
-        toolbar.addWidget(btn_add_footnote)
-
-        # Version history button
-        btn_version_history = QPushButton("Version History")
-        btn_version_history.clicked.connect(self.show_version_history)
-        toolbar.addWidget(btn_version_history)
-
-        center_layout.addWidget(toolbar)
-
-        self.text_editor = QTextEdit()
-        self.text_editor.setPlaceholderText("Write your scene here...")
-        self.text_editor.textChanged.connect(self._on_text_changed)
-        center_layout.addWidget(self.text_editor, 1)
+    def _insert_numbered_list(self):
+        cursor = self.text_editor.textCursor()
+        selected = cursor.selectedText()
+        if selected:
+            lines = selected.split("\u2029")
+            new_text = "\n".join([f"{i+1}. {line}" for i, line in enumerate(lines)])
+            cursor.insertText(new_text)
+        else:
+            cursor.insertText("1. ")
 
         splitter.addWidget(center_panel)
-
         # Right panel: Annotations/Footnotes
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
@@ -187,10 +36,8 @@ class ProjectEditorWindow(QWidget):
             )
         )
         right_layout.addWidget(self.annotation_list, 1)
-
         splitter.addWidget(right_panel)
         splitter.setSizes([200, 600, 200])
-
         tab_widget.addTab(splitter, "Editor")
 
         # --- Story Planning Tab (Timeline) ---
@@ -303,12 +150,29 @@ class ProjectEditorWindow(QWidget):
             scenes = self.chapters[cidx]["scenes"]
             if sidx < len(scenes):
                 scene = scenes[sidx]
+                self.text_editor.setReadOnly(False)
                 if isinstance(scene, dict):
                     self.text_editor.setHtml(scene.get("content", ""))
                 else:
                     self.text_editor.setPlainText("")
+                # Refresh annotation/footnote list
+                self._refresh_annotation_list()
+                # Show placeholder if no annotations/footnotes
+                ann = scene.get("annotations", []) if isinstance(scene, dict) else []
+                fn = scene.get("footnotes", []) if isinstance(scene, dict) else []
+                if not ann and not fn:
+                    self.annotation_list.clear()
+                    self.annotation_list.addItem("(No annotations or footnotes)")
+            else:
+                self.text_editor.clear()
+                self.text_editor.setReadOnly(True)
+                self.annotation_list.clear()
+                self.annotation_list.addItem("(No annotations or footnotes)")
         else:
             self.text_editor.clear()
+            self.text_editor.setReadOnly(True)
+            self.annotation_list.clear()
+            self.annotation_list.addItem("(No annotations or footnotes)")
         self._updating_text = False
 
     def _on_text_changed(self):
@@ -332,6 +196,12 @@ class ProjectEditorWindow(QWidget):
                     scene["versions"].append({"content": scene["content"]})
                 scene["title"] = self.scene_list.item(sidx).text()
                 scene["content"] = new_content
+                # Update markdown preview if enabled
+                if getattr(self, "markdown_preview_enabled", False):
+                    import markdown
+
+                    html = markdown.markdown(self.text_editor.toPlainText())
+                    self.markdown_view.setHtml(html)
         # Start autosave debounce
         self._autosave_timer.start(2000)
 

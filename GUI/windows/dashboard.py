@@ -33,9 +33,17 @@ class DashboardWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 10px;")
         self.list_widget = QListWidget()
-        self.list_widget.addItems(self.projects)
+        self.list_widget.addItems(
+            [
+                p["title"] if isinstance(p, dict) and "title" in p else str(p)
+                for p in self.projects
+            ]
+        )
         layout.addWidget(title)
         layout.addWidget(self.list_widget)
+
+        # Double-click to open project
+        self.list_widget.itemDoubleClicked.connect(self.open_selected_project)
 
         btn_layout = QHBoxLayout()
         btn_create = QPushButton("Create Project")
@@ -50,15 +58,23 @@ class DashboardWindow(QMainWindow):
         layout.addLayout(btn_layout)
 
         btn_project_editor = QPushButton("Open Project Editor")
-        btn_project_editor.clicked.connect(self.open_project_editor_window)
+        btn_project_editor.clicked.connect(self.open_selected_project)
         layout.addWidget(btn_project_editor)
         central.setLayout(layout)
         self.setCentralWidget(central)
 
-    def open_project_editor_window(self):
-        from GUI.windows.project_editor import ProjectEditorWindow
+    def open_selected_project(self, *args):
+        """Open the Project Editor for the currently selected project."""
+        from GUI.windows.project_editor_window import ProjectEditorWindow
 
-        self.project_editor = ProjectEditorWindow(self)
+        row = self.list_widget.currentRow()
+        if row < 0 or row >= len(self.projects):
+            QMessageBox.warning(
+                self, "Open Project", "Please select a project to open."
+            )
+            return
+        project = self.projects[row]
+        self.project_editor = ProjectEditorWindow(self, project=project)
         self.project_editor.show()
 
     def create_project(self):
